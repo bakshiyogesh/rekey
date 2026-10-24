@@ -1,0 +1,66 @@
+Set up a new key rotator project with the following architecture and decisions.
+
+## Goal
+
+Build a narrow, safe API key rotator for developers and agents. Core job: rotate a key with zero downtime using dual-key / overlap rotation.
+
+## Architecture
+
+- CLI as the main interface
+- MCP server so agents can trigger rotation without seeing secret values
+- Rotation Orchestrator that coordinates the flow
+- Provider Adapters (one per provider)
+- Destination Updaters (for .env, GitHub Actions, etc.)
+
+## Dual-key flow (mandatory)
+
+1. Create a new key (old key stays valid)
+2. Update all configured destinations with the new key
+3. Verify the new key works
+4. Revoke the old key
+Always support a dry-run mode.
+
+## Initial providers (free version)
+
+- OpenAI
+- Stripe
+- GitHub
+
+## Initial destinations
+
+- Local .env file
+- GitHub Actions secrets
+
+## Project structure
+
+Organize the code clearly, for example:
+
+- cli/ or main entry
+- orchestrator/
+- adapters/ (openai.py, stripe.py, github.py)
+- destinations/ (env_file.py, github_actions.py)
+- mcp/ (MCP server)
+- config example (YAML)
+- README with usage
+
+## Rules to follow
+
+- Never log or return full secret values
+- Keep adapters and destinations separate
+- Every adapter implements: create_key, revoke_key, verify_key
+- Prefer Python
+- Add clear comments on security-sensitive steps
+- Make the core easy to open-source later
+
+## Tasks
+
+1. Create the project structure and basic files
+2. Implement the provider adapter interface and one example (OpenAI or Stripe)
+3. Implement one destination updater (.env)
+4. Implement a minimal orchestrator that runs the dual-key flow
+5. Add a simple CLI command (rotate <provider> --dry-run / --execute)
+6. Add a basic MCP server with a rotate_key tool
+7. Include a sample config YAML
+8. Write a short README explaining the architecture and how to run it
+
+Start by proposing the folder structure and the adapter interface, then implement the pieces step by step. Ask if anything is unclear before writing large amounts of code.

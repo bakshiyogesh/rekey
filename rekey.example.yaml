@@ -1,0 +1,58 @@
+# Rekey sample config. Copy to rekey.yaml.
+# Contains NO secrets — credentials are referenced by env var NAME only.
+# Rekey refuses to load a config that looks like it contains a real key.
+
+state_file: .rekey/state.json   # non-secret key ids, used to know what to revoke
+
+targets:
+  openai-prod:
+    provider:
+      type: openai
+      mode: api                       # default for openai
+      admin_key_env: OPENAI_ADMIN_KEY # env var holding your OpenAI Admin key
+      project_id: proj_XXXXXXXXXXXX
+      name_prefix: rekey-prod
+    destinations:
+      - type: env_file
+        path: ./.env
+        variable: OPENAI_API_KEY
+      - type: github_actions
+        repo: your-org/your-repo
+        secret_name: OPENAI_API_KEY
+        token_env: GITHUB_TOKEN       # needs "secrets: write" on the repo
+
+  github-ci:
+    provider:
+      type: github
+      mode: api                       # GitHub App installation token (1h)
+      app_id: "123456"
+      installation_id: "78901234"
+      private_key_path_env: GITHUB_APP_PRIVATE_KEY_PATH
+      repositories: [your-repo]       # scope down
+      permissions: { contents: read }
+    destinations:
+      - type: env_file
+        path: ./.env
+        variable: GH_APP_TOKEN
+
+  github-oauth-dev:
+    provider:
+      type: github
+      mode: oauth                     # Delegated RFC 8628 Device Flow
+      client_id: Ov23liXXXXXXXXXXXXXX # GitHub OAuth App Client ID
+      scopes: [repo, workflow]
+    destinations:
+      - type: env_file
+        path: ./.env
+        variable: GITHUB_TOKEN
+
+  stripe-dev:
+    provider:
+      type: stripe
+      mode: cli                       # Stripe has no key-creation API
+      profile: default
+      live_mode: false
+    destinations:
+      - type: env_file
+        path: ./.env
+        variable: STRIPE_SECRET_KEY

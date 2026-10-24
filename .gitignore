@@ -1,0 +1,11 @@
+.env
+.env.*
+*.rekey.bak
+.rekey/
+rekey.yaml
+*.pem
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+dist/
