@@ -56,6 +56,14 @@ class GitHubOAuthAdapter(ProviderAdapter):
 
     def _get_client_id(self, ctx: RotationContext) -> str:
         cid = self._client_id or ctx.provider_options.get("client_id") or os.environ.get("GITHUB_OAUTH_CLIENT_ID")
+        if not cid or "XXXX" in str(cid):
+            from rekey.credentials import resolve_credential
+            cid = resolve_credential(
+                "GITHUB_OAUTH_CLIENT_ID",
+                prompt_label="GitHub OAuth App Client ID (e.g. Ov23li...)",
+                hidden=False,
+                hint="github.com/settings/developers -> OAuth Apps -> Client ID",
+            )
         if not cid:
             raise AdapterError(
                 "github oauth: provider.client_id or GITHUB_OAUTH_CLIENT_ID is required"

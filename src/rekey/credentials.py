@@ -52,8 +52,14 @@ def _save_credential(var_name: str, value: str) -> None:
     os.chmod(path, 0o600)
 
 
-def resolve_credential(var_name: str, prompt_label: str = "Credential", required: bool = True) -> str:
-    """Get credential from environment, cached local store, or prompt the user."""
+def resolve_credential(
+    var_name: str,
+    prompt_label: str = "Credential",
+    required: bool = True,
+    hidden: bool = True,
+    hint: str = "",
+) -> str:
+    """Get credential/setting from environment, config, cached store, or prompt the user."""
     # 1. Check current process environment
     val = os.environ.get(var_name)
     if val:
@@ -68,10 +74,15 @@ def resolve_credential(var_name: str, prompt_label: str = "Credential", required
 
     # 3. If running interactively, prompt the user instead of crashing!
     if sys.stdin.isatty():
-        print(f"\n\033[1;33m[Rekey] Missing {var_name}\033[0m")
-        print(f"Please provide your {prompt_label} to continue rotation.")
+        print(f"\n\033[1;33m[Rekey] Missing: {prompt_label}\033[0m")
+        if hint:
+            print(f"\033[2mWhere to find: {hint}\033[0m")
+        prompt_text = f"Enter {prompt_label} {'(hidden)' if hidden else ''}: "
         try:
-            entered = getpass.getpass(f"Enter {var_name} (hidden): ").strip()
+            if hidden:
+                entered = getpass.getpass(prompt_text).strip()
+            else:
+                entered = input(prompt_text).strip()
         except (KeyboardInterrupt, EOFError):
             print("\nAborted.")
             sys.exit(1)
@@ -80,10 +91,10 @@ def resolve_credential(var_name: str, prompt_label: str = "Credential", required
             os.environ[var_name] = entered
             # Ask if they want it saved locally for future convenience
             try:
-                save_choice = input("Remember this credential locally for future rotations? [Y/n]: ").strip().lower()
+                save_choice = input("Remember this locally for future rotations? [Y/n]: ").strip().lower()
                 if save_choice in ("", "y", "yes"):
                     _save_credential(var_name, entered)
-                    print(f"✓ Saved securely to {_credentials_file()} (mode 0600)\n")
+                    print(f"✓ Saved to {_credentials_file()}\n")
             except Exception:
                 pass
             return entered

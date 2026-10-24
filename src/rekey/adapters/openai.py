@@ -42,6 +42,14 @@ class OpenAIAdapter(ProviderAdapter):
     @staticmethod
     def _project(ctx: RotationContext) -> str:
         project = ctx.provider_options.get("project_id")
+        if not project or "XXXX" in str(project):
+            from rekey.credentials import resolve_credential
+            project = resolve_credential(
+                "OPENAI_PROJECT_ID",
+                prompt_label="OpenAI Project ID (proj_...)",
+                hidden=False,
+                hint="platform.openai.com -> Project Settings -> General -> Project ID",
+            )
         if not project:
             raise AdapterError("openai: provider.project_id is required")
         return project
