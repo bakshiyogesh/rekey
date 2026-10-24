@@ -88,15 +88,30 @@ class GitHubOAuthAdapter(ProviderAdapter):
         expires_in = int(data.get("expires_in", 900))
         interval = int(data.get("interval", 5))
 
-        self._echo("\n[OAuth] Complete authentication in your browser:")
-        self._echo(f"  URL:  {verification_uri}")
-        self._echo(f"  Code: {user_code}\n")
+        # Display prominent, human-friendly code box
+        self._echo("\n" + "=" * 54)
+        self._echo("  \033[1;36m[OAuth] ACTION REQUIRED: Authorize in your browser\033[0m")
+        self._echo("=" * 54)
+        self._echo(f"  1. Go to:  \033[4m{verification_uri}\033[0m")
+        self._echo(f"  2. Enter code:  \033[1;32m{user_code}\033[0m")
+        self._echo("=" * 54)
+        self._echo("  (Waiting for your approval in browser... Ctrl+C to cancel)\n")
 
-        # Attempt to open the verification URL in browser if interactive
+        # Attempt to open verification URL in browser silently without noisy stderr
         try:
-            webbrowser.open(verification_uri)
+            import os
+            import subprocess
+            # Suppress browser stderr (e.g. Chrome zygote/broken pipe logs)
+            subprocess.Popen(
+                ["xdg-open", verification_uri],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
         except Exception:
-            pass
+            try:
+                webbrowser.open(verification_uri)
+            except Exception:
+                pass
 
         # Poll for user approval
         deadline = time.time() + expires_in

@@ -52,15 +52,41 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{'DRY RUN' if dry else 'EXECUTE'}: rotating '{args.target}'")
     try:
         report = run_rotation(cfg, args.target, dry, on_step=None if args.json else _print_step)
+    except KeyboardInterrupt:
+        print("\n\033[33mRotation cancelled by user.\033[0m")
+        return 130
     except Exception as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
     if args.json:
         print(json.dumps(report.to_dict(), indent=2))
     else:
-        print("result:", "OK" if report.success else "FAILED")
+        if report.success:
+            print("\n\033[32m✔ Result: ROTATION SUCCESSFUL\033[0m")
+        else:
+            print("\n\033[1;31m✖ Result: ROTATION FAILED\033[0m")
+            failed_steps = [s for s in report.steps if not s.ok]
+            if failed_steps:
+                print("\n\033[1;33m--- Troubleshooting & Fix Guide ---\033[0m")
+                for s in failed_steps:
+                    print(f"  • Step '\033[1m{s.step}\033[0m' failed: {s.detail}")
+                    # Provide actionable hints based on the failed step
+                    if "401" in s.detail or "unauthorized" in s.detail.lower():
+                        print("    👉 Check that your API key / token has not expired and has valid permissions.")
+                    elif "permission" in s.detail.lower() or "errno 13" in s.detail.lower():
+                        print("    👉 File permission issue: check write permissions on your .env destination (chmod 600 .env).")
+                    elif "github" in s.step and ("404" in s.detail or "403" in s.detail):
+                        print("    👉 GitHub Actions error: ensure GITHUB_TOKEN has 'Secrets: Read & Write' on the repository.")
+                    elif "device" in s.detail.lower() or "oauth" in s.detail.lower():
+                        print("    👉 OAuth issue: make sure 'Enable Device Flow' is checked in your GitHub OAuth App settings.")
+                print("\n  \033[2mNotice: Because Rekey uses dual-key zero-downtime safety, your working key was NOT revoked.\033[0m")
+                print("  \033[2mTo preview fixes before executing, run with default dry-run mode (without --execute).\033[0m\n")
     return 0 if report.success else 1
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\n\033[33mRotation cancelled by user.\033[0m")
+        sys.exit(130)
