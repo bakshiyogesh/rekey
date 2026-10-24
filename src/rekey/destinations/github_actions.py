@@ -36,9 +36,8 @@ class GitHubActionsDestination(DestinationUpdater):
         return f"github:{self.repo}/{self.secret_name}"
 
     def _headers(self) -> dict[str, str]:
-        token = os.environ.get(self.token_env)
-        if not token:
-            raise RuntimeError(f"env var {self.token_env} is not set")
+        from rekey.credentials import resolve_credential
+        token = resolve_credential(self.token_env, prompt_label=f"GitHub Token for repo {self.repo} (repo scope)")
         return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28"}
 

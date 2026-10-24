@@ -30,13 +30,14 @@ except ImportError:
         sys.exit("install the MCP extra: pip install 'rekey[mcp]'")
 
 mcp = _Server("rekey")
-CONFIG = os.environ.get("REKEY_CONFIG", "rekey.yaml")
+def _get_config():
+    return load_config(os.environ.get("REKEY_CONFIG", "rekey.yaml"))
 
 
 @mcp.tool()
 def list_targets() -> list[dict]:
     """List configured rotation targets (no secrets)."""
-    cfg = load_config(CONFIG)
+    cfg = _get_config()
     return [{"target": n, "provider": t.provider, "mode": t.mode or "default",
              "destinations": len(t.destinations)} for n, t in cfg.targets.items()]
 
@@ -44,7 +45,7 @@ def list_targets() -> list[dict]:
 @mcp.tool()
 def rotate_key(target: str, dry_run: bool = True) -> dict:
     """Rotate a key using the dual-key flow. Returns a masked report only."""
-    cfg = load_config(CONFIG)
+    cfg = _get_config()
     try:
         return run_rotation(cfg, target, dry_run, allow_interactive=False).to_dict()
     except Exception as e:

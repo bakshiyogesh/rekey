@@ -35,9 +35,8 @@ class OpenAIAdapter(ProviderAdapter):
         self._client = client or httpx.Client(timeout=20)
 
     def _admin_headers(self) -> dict[str, str]:
-        key = os.environ.get(self._admin_key_env)
-        if not key:
-            raise AdapterError(f"env var {self._admin_key_env} is not set")
+        from rekey.credentials import resolve_credential
+        key = resolve_credential(self._admin_key_env, prompt_label="OpenAI Admin Key (sk-admin-...)")
         return {"Authorization": f"Bearer {key}"}
 
     @staticmethod

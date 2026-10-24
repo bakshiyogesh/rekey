@@ -38,9 +38,8 @@ class GitHubAppAdapter(ProviderAdapter):
         self._client = client or httpx.Client(timeout=20)
 
     def _app_jwt(self, app_id: str) -> str:
-        path = os.environ.get(self._key_path_env)
-        if not path:
-            raise AdapterError(f"env var {self._key_path_env} is not set")
+        from rekey.credentials import resolve_credential
+        path = resolve_credential(self._key_path_env, prompt_label="GitHub App Private Key Path (.pem)")
         now = int(time.time())
         # SECURITY: JWT valid for <10 min, backdated 60s for clock skew.
         payload = {"iat": now - 60, "exp": now + 540, "iss": app_id}
