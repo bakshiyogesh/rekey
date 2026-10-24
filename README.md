@@ -81,12 +81,33 @@ pass them through the agent. Works with MCP SDK 1.x (`FastMCP`) and 2.x (`MCPSer
 Tools: `list_targets`, `rotate_key(target, dry_run=True)`. Responses contain only masked values
 and fingerprints — agents never see a secret. Assisted mode is refused over MCP.
 
-## Security
+## Destinations & Environment Targeting
 
-- `SecretValue` masks itself in `str`/`repr`/f-strings; plaintext only via `.reveal()`.
-- All provider errors and subprocess output pass through `redact()`.
-- Config loader rejects files that look like they contain keys.
-- `.env` writes are atomic, `0600`, with a `.rekey.bak` backup.
+Rekey supports pushing rotated keys to multiple destinations and environments simultaneously:
+
+| Destination | Environment Field | Example Config |
+|---|---|---|
+| **Local `.env`** | `path` (file-based) | `path: .env.production` |
+| **GitHub Actions** | `environment` (optional) | `environment: production` (updates environment secret) or omit for repo secret |
+| **Vercel** | `targets` (optional list) | `targets: [production, preview]` or `[production]` (default) |
+
+```yaml
+destinations:
+  - type: env_file
+    path: .env.production
+    variable: OPENAI_API_KEY
+
+  - type: github_actions
+    owner: myorg
+    repo: my-app
+    secret_name: OPENAI_API_KEY
+    environment: production          # targets GitHub Environment
+
+  - type: vercel
+    project: my-nextjs-app
+    env_name: OPENAI_API_KEY
+    targets: [production, preview]   # updates multiple Vercel environments
+```
 
 ## Layout
 

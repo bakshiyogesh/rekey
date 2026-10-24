@@ -27,13 +27,17 @@ API = "https://api.github.com"
 class GitHubActionsDestination(DestinationUpdater):
     kind = "github_actions"
 
-    def __init__(self, repo: str, secret_name: str, token_env: str = "GITHUB_TOKEN",
-                 client: httpx.Client | None = None):
-        self.repo, self.secret_name, self.token_env = repo, secret_name, token_env
+    def __init__(self, repo: str, secret_name: str, environment: str | None = None,
+                 token_env: str = "GITHUB_TOKEN", client: httpx.Client | None = None):
+        self.repo = repo.strip("/")
+        self.secret_name = secret_name
+        self.environment = environment
+        self.token_env = token_env
         self._client = client or httpx.Client(timeout=20)
 
     def describe(self) -> str:
-        return f"github:{self.repo}/{self.secret_name}"
+        env_suffix = f"@{self.environment}" if self.environment else ""
+        return f"github:{self.repo}{env_suffix}/{self.secret_name}"
 
     def _headers(self) -> dict[str, str]:
         from rekey.credentials import resolve_credential
@@ -41,23 +45,45 @@ class GitHubActionsDestination(DestinationUpdater):
         return {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
                 "X-GitHub-Api-Version": "2022-11-28"}
 
+    def _get_public_key_url(self) -> str:
+        if self.environment:
+            # Environment secret public key endpoint
+            return f"{API}/repositories/{self._get_repo_id()}/environments/{self.environment}/secrets/public-key"
+        return f"{API}/repos/{self.repo}/actions/secrets/public-key"
+
+    def _get_secret_url(self) -> str:
+        if self.environment:
+            # Environment secret endpoint
+            return f"{API}/repositories/{self._get_repo_id()}/environments/{self.environment}/secrets/{self.secret_name}"
+        return f"{API}/repos/{self.repo}/actions/secrets/{self.secret_name}"
+
+    def _get_repo_id(self) -> int:
+        r = self._client.get(f"{API}/repos/{self.repo}", headers=self._headers())
+        if r.status_code != 200:
+            raise RuntimeError(f"failed to fetch repo id for {self.repo} ({r.status_code}): {redact(r.text)[:200]}")
+        return r.json()["id"]
+
     def write(self, value: SecretValue, dry_run: bool) -> UpdateResult:
         name = self.describe()
         try:
             headers = self._headers()
-        except RuntimeError as e:
+            pk_url = self._get_public_key_url()
+        except Exception as e:
             return UpdateResult(name, False, dry_run, str(e))
-        r = self._client.get(f"{API}/repos/{self.repo}/actions/secrets/public-key", headers=headers)
+
+        r = self._client.get(pk_url, headers=headers)
         if r.status_code != 200:
             return UpdateResult(name, False, dry_run, f"public-key fetch {r.status_code}: {redact(r.text)[:200]}")
         if dry_run:
-            return UpdateResult(name, True, True, f"would set {self.secret_name}")
+            target_desc = f"{self.secret_name} (env: {self.environment})" if self.environment else self.secret_name
+            return UpdateResult(name, True, True, f"would set {target_desc}")
 
         pk = r.json()
         box = public.SealedBox(public.PublicKey(pk["key"].encode(), encoding.Base64Encoder()))
         encrypted = base64.b64encode(box.encrypt(value.reveal().encode())).decode()
+        put_url = self._get_secret_url()
         r = self._client.put(
-            f"{API}/repos/{self.repo}/actions/secrets/{self.secret_name}",
+            put_url,
             headers=headers, json={"encrypted_value": encrypted, "key_id": pk["key_id"]},
         )
         ok = r.status_code in (201, 204)

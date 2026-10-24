@@ -19,7 +19,13 @@ targets:
       - type: github_actions
         repo: your-org/your-repo
         secret_name: OPENAI_API_KEY
-        token_env: GITHUB_TOKEN       # needs "secrets: write" on the repo
+        environment: production       # optional: targeted GitHub Environment
+        token_env: GITHUB_TOKEN
+      - type: vercel
+        project: my-nextjs-app
+        env_name: OPENAI_API_KEY
+        targets: [production, preview] # optional: multi-environment push
+        token_env: VERCEL_TOKEN
 
   github-ci:
     provider:
