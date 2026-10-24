@@ -51,6 +51,7 @@ Organize the code clearly, for example:
 - Prefer Python
 - Add clear comments on security-sensitive steps
 - Make the core easy to open-source later
+- **Cross-Platform by Default**: Ensure all paths, subprocesses, permissions, and keyring logic work natively across Linux, macOS, and Windows.
 
 ## Tasks
 

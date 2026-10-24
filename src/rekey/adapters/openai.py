@@ -42,6 +42,14 @@ class OpenAIAdapter(ProviderAdapter):
     @staticmethod
     def _project(ctx: RotationContext) -> str:
         project = ctx.provider_options.get("project_id")
+        if not project or "XXXX" in str(project):
+            from rekey.credentials import resolve_credential
+            project = resolve_credential(
+                "OPENAI_PROJECT_ID",
+                prompt_label="OpenAI Project ID (proj_...)",
+                hidden=False,
+                hint="platform.openai.com -> Project Settings -> General -> Project ID",
+            )
         if not project:
             raise AdapterError("openai: provider.project_id is required")
         return project
@@ -67,7 +75,20 @@ class OpenAIAdapter(ProviderAdapter):
 
     def verify_key(self, secret: SecretValue) -> VerifyResult:
         r = self._client.get(f"{API}/models", headers={"Authorization": f"Bearer {secret.reveal()}"})
-        return VerifyResult(ok=r.status_code == 200, detail=f"GET /models -> {r.status_code}")
+        if r.status_code == 200:
+            return VerifyResult(ok=True, detail="GET /models -> 200 (Key active and verified)")
+        elif r.status_code == 401:
+            raw = secret.reveal()
+            hint = ""
+            if raw.startswith("sk-admin-"):
+                hint = " (Note: You provided an Admin Key 'sk-admin-...', but this destination requires a standard API/Project Key 'sk-proj-...')"
+            elif not raw.startswith("sk-"):
+                hint = " (Note: Key format looks invalid, OpenAI keys typically start with 'sk-proj-' or 'sk-')"
+            return VerifyResult(
+                ok=False,
+                detail=f"Authentication failed (401 Unauthorized): Invalid API key.{hint}",
+            )
+        return VerifyResult(ok=False, detail=f"GET /models -> {r.status_code}: {redact(r.text)[:200]}")
 
     def revoke_key(self, key_id: str, ctx: RotationContext) -> RevokeResult:
         project = self._project(ctx)

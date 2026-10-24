@@ -56,6 +56,14 @@ class GitHubOAuthAdapter(ProviderAdapter):
 
     def _get_client_id(self, ctx: RotationContext) -> str:
         cid = self._client_id or ctx.provider_options.get("client_id") or os.environ.get("GITHUB_OAUTH_CLIENT_ID")
+        if not cid or "XXXX" in str(cid):
+            from rekey.credentials import resolve_credential
+            cid = resolve_credential(
+                "GITHUB_OAUTH_CLIENT_ID",
+                prompt_label="GitHub OAuth App Client ID (e.g. Ov23li...)",
+                hidden=False,
+                hint="github.com/settings/developers -> OAuth Apps -> Client ID",
+            )
         if not cid:
             raise AdapterError(
                 "github oauth: provider.client_id or GITHUB_OAUTH_CLIENT_ID is required"
@@ -80,15 +88,18 @@ class GitHubOAuthAdapter(ProviderAdapter):
         expires_in = int(data.get("expires_in", 900))
         interval = int(data.get("interval", 5))
 
-        self._echo("\n[OAuth] Complete authentication in your browser:")
-        self._echo(f"  URL:  {verification_uri}")
-        self._echo(f"  Code: {user_code}\n")
+        # Display prominent, human-friendly code box
+        self._echo("\n" + "=" * 54)
+        self._echo("  \033[1;36m[OAuth] ACTION REQUIRED: Authorize in your browser\033[0m")
+        self._echo("=" * 54)
+        self._echo(f"  1. Go to:  \033[4m{verification_uri}\033[0m")
+        self._echo(f"  2. Enter code:  \033[1;32m{user_code}\033[0m")
+        self._echo("=" * 54)
+        self._echo("  (Waiting for your approval in browser... Ctrl+C to cancel)\n")
 
-        # Attempt to open the verification URL in browser if interactive
-        try:
-            webbrowser.open(verification_uri)
-        except Exception:
-            pass
+        # Attempt to open verification URL in browser silently without noisy stderr
+        from rekey.platform_paths import open_browser_cross_platform
+        open_browser_cross_platform(verification_uri)
 
         # Poll for user approval
         deadline = time.time() + expires_in

@@ -62,12 +62,18 @@ class EnvFileDestination(DestinationUpdater):
         if exists:
             bak = self.path.with_name(self.path.name + ".rekey.bak")
             shutil.copy2(self.path, bak)
-            os.chmod(bak, 0o600)
+            try:
+                os.chmod(bak, 0o600)
+            except OSError:
+                pass
         fd, tmp = tempfile.mkstemp(dir=self.path.parent, prefix=".rekey-")
         try:
             with os.fdopen(fd, "w") as f:
                 f.writelines(lines)
-            os.chmod(tmp, 0o600)
+            try:
+                os.chmod(tmp, 0o600)
+            except OSError:
+                pass
             os.replace(tmp, self.path)
         except Exception:
             Path(tmp).unlink(missing_ok=True)

@@ -34,20 +34,62 @@ class Config:
     state_file: Path = field(default=Path(".rekey/state.json"))
 
 
+def find_config_file(path: str | Path | None = None) -> Path:
+    """Find config file, checking current dir, parent dirs, and common alternatives."""
+    if path and path != DEFAULT_CONFIG:
+        p = Path(path).expanduser().resolve()
+        if not p.exists():
+            raise FileNotFoundError(f"Config file not found at '{p}'.")
+        return p
+
+    # Default search: walk up from current working directory
+    candidates = ["rekey.yaml", "rekey.yml"]
+    current = Path.cwd().resolve()
+    for directory in [current, *current.parents]:
+        for candidate in candidates:
+            cfg = directory / candidate
+            if cfg.is_file():
+                return cfg
+
+    # Fallback to current directory default
+    return Path(DEFAULT_CONFIG).resolve()
+
+
 def load_config(path: str | Path = DEFAULT_CONFIG) -> Config:
-    p = Path(path)
-    raw = yaml.safe_load(p.read_text()) or {}
+    p = find_config_file(path)
+    if not p.exists():
+        raise FileNotFoundError(
+            f"Config file '{path}' not found.\n"
+            "👉 To create one: run 'cp rekey.example.yaml rekey.yaml'\n"
+            "👉 Or specify a path: 'rekey -c <path>' or set REKEY_CONFIG=<path>"
+        )
+
+    content = p.read_text()
+    if not content.strip():
+        raise ValueError(f"Config file '{p}' is empty. Define targets under 'targets:'.")
+
+    raw = yaml.safe_load(content) or {}
+    if not isinstance(raw, dict):
+        raise ValueError(f"Config file '{p}' must be a YAML mapping.")
+
     _reject_inline_secrets(json.dumps(raw))
+    targets_dict = raw.get("targets")
+    if not targets_dict or not isinstance(targets_dict, dict):
+        raise ValueError(f"No targets found in '{p}'. Define at least one target under 'targets:'.")
+
     targets = {}
-    for name, t in (raw.get("targets") or {}).items():
+    for name, t in targets_dict.items():
+        if not isinstance(t, dict):
+            raise ValueError(f"Target '{name}' must be a mapping in '{p}'")
         prov = dict(t.get("provider") or {})
         ptype = prov.pop("type", None)
         if not ptype:
-            raise ValueError(f"target '{name}': provider.type is required")
+            raise ValueError(f"Target '{name}': provider.type is required")
         targets[name] = TargetConfig(
             name=name, provider=ptype, mode=prov.pop("mode", None),
             provider_options=prov, destinations=list(t.get("destinations") or []),
         )
+
     state = Path(raw.get("state_file", ".rekey/state.json"))
     if not state.is_absolute():
         state = p.parent / state

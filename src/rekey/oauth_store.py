@@ -14,12 +14,12 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from rekey.platform_paths import get_oauth_tokens_path
 from rekey.secrets import SecretValue
 
 
 def _default_store_path() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "rekey" / "oauth_tokens.json"
+    return get_oauth_tokens_path()
 
 
 class OAuthTokenStore:
