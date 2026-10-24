@@ -98,20 +98,8 @@ class GitHubOAuthAdapter(ProviderAdapter):
         self._echo("  (Waiting for your approval in browser... Ctrl+C to cancel)\n")
 
         # Attempt to open verification URL in browser silently without noisy stderr
-        try:
-            import os
-            import subprocess
-            # Suppress browser stderr (e.g. Chrome zygote/broken pipe logs)
-            subprocess.Popen(
-                ["xdg-open", verification_uri],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-        except Exception:
-            try:
-                webbrowser.open(verification_uri)
-            except Exception:
-                pass
+        from rekey.platform_paths import open_browser_cross_platform
+        open_browser_cross_platform(verification_uri)
 
         # Poll for user approval
         deadline = time.time() + expires_in

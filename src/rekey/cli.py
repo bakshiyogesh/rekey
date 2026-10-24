@@ -34,6 +34,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--json", action="store_true", help="emit report as JSON (masked)")
 
     sub.add_parser("list", help="list configured targets")
+    hist_cmd = sub.add_parser("logs", help="view rotation execution logs and history")
+    hist_cmd.add_argument("-n", "--limit", type=int, default=10, help="number of recent events (default: 10)")
     args = p.parse_args(argv)
 
     try:
@@ -41,6 +43,24 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError) as e:
         print(f"config error: {e}", file=sys.stderr)
         return 2
+
+    if args.cmd == "logs":
+        hist_file = cfg.state_file.parent / "history.log"
+        if not hist_file.exists():
+            print("No rotation history recorded yet.")
+            return 0
+        lines = hist_file.read_text().splitlines()
+        recent = [json.loads(l) for l in lines[-args.limit:]]
+        print(f"\n\033[1;36m=== Rekey Rotation History & Error Logs (Last {len(recent)}) ===\033[0m")
+        for ev in reversed(recent):
+            status = "\033[32m✔ SUCCESS\033[0m" if ev["success"] else "\033[31m✖ FAILED\033[0m"
+            dry = " (DRY-RUN)" if ev.get("dry_run") else ""
+            print(f"\n[{ev['timestamp'][:19]}] {ev['target']} ({ev['provider']}/{ev['mode']}){dry} -> {status}")
+            for s in ev["steps"]:
+                mark = "  ✓" if s["ok"] else "  ✗"
+                print(f"  {mark} {s['step']:<26} {s['detail']}")
+        print()
+        return 0
 
     if args.cmd == "list":
         for name, t in cfg.targets.items():

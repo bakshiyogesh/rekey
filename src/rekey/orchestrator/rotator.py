@@ -17,6 +17,8 @@ The orchestrator is mode-agnostic: API / CLI / ASSISTED adapters look identical 
 
 from __future__ import annotations
 
+import json
+import os
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -75,6 +77,7 @@ class Rotator:
             new = a.create_key(ctx)
         except Exception as e:
             self._log(report, "create", False, str(e))
+            self._record_history(report)
             return report
         report.new_key_fingerprint, report.new_key_masked = new.secret.fingerprint, new.secret.masked
         self._log(report, "create", True, f"created {new.key_id} ({new.secret.masked})")
@@ -82,6 +85,7 @@ class Rotator:
         # 1b. PRE-FLIGHT VERIFY
         if not self._verify(report, new.secret, "verify:preflight"):
             self._abort_revoke_new(report, new.key_id, ctx)
+            self._record_history(report)
             return report
 
         # 2. UPDATE DESTINATIONS
@@ -99,12 +103,14 @@ class Rotator:
                               "Fix the failing destination and re-run, or restore backups.")
                 else:
                     self._abort_revoke_new(report, new.key_id, ctx)
+                self._record_history(report)
                 return report
             written.append(res.destination)
 
         # 3. POST-UPDATE VERIFY
         if not self._verify(report, new.secret, "verify:post-update"):
             self._log(report, "abort", False, "new key failed after update; old key NOT revoked")
+            self._record_history(report)
             return report
 
         # Record the new key BEFORE revoking, so a crash during revoke
@@ -124,7 +130,33 @@ class Rotator:
                 # Rotation still succeeded; the old key just remains valid.
                 self._log(report, "revoke", False, f"revoke of {old_id} failed: {e}. Revoke manually.")
         report.success = True
+        self._record_history(report)
         return report
+
+    def _record_history(self, report: RotationReport) -> None:
+        """Persist structured, redacted rotation event to .rekey/history.log."""
+        try:
+            from datetime import datetime, timezone
+            hist_file = self.state.path.parent / "history.log"
+            hist_file.parent.mkdir(parents=True, exist_ok=True)
+            entry = {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "target": report.target,
+                "provider": report.provider,
+                "mode": report.mode,
+                "dry_run": report.dry_run,
+                "success": report.success,
+                "fingerprint": report.new_key_fingerprint,
+                "steps": [s.__dict__ for s in report.steps],
+            }
+            with open(hist_file, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+            try:
+                os.chmod(hist_file, 0o600)
+            except OSError:
+                pass
+        except Exception:
+            pass
 
     # -- helpers ---------------------------------------------------------
     def _verify(self, report: RotationReport, secret, label: str) -> bool:

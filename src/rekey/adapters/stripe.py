@@ -30,12 +30,12 @@ from rekey.adapters.base import AdapterError, ProviderAdapter
 from rekey.models import (
     KeySource, NewKey, RevokeOutcome, RevokeResult, RotationContext, VerifyResult,
 )
+from rekey.platform_paths import get_stripe_config_path
 from rekey.secrets import SecretValue, redact
 
 
 def _default_config_path() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "stripe" / "config.toml"
+    return get_stripe_config_path()
 
 
 class StripeCLIAdapter(ProviderAdapter):

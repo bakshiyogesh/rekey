@@ -14,12 +14,12 @@ import os
 import sys
 from pathlib import Path
 
+from rekey.platform_paths import get_credentials_path
 from rekey.secrets import SecretValue
 
 
 def _credentials_file() -> Path:
-    base = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    return Path(base) / "rekey" / "credentials.env"
+    return get_credentials_path()
 
 
 def _load_stored_credentials() -> dict[str, str]:
